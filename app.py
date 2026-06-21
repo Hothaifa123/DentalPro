@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect
+from flask import Flask, request, jsonify, render_template, redirect, send_from_directory
 from flask_cors import CORS
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -19,20 +19,15 @@ login_manager.login_view = 'login'
 
 init_db()
 
-# --- إنشاء حساب المدير وحساب تجريبي إذا لم يوجدوا ---
+# --- تحميل الأدوية وحساب المدير ---
 db = get_db()
 if db.query(User).filter_by(username='admin').first() is None:
     db.add(User(username='admin', password_hash=generate_password_hash('admin123'), is_admin=True, is_active=True))
-if db.query(User).filter_by(username='doctor').first() is None:
-    db.add(User(username='doctor', password_hash=generate_password_hash('doctor123'), is_admin=False, is_active=True))
-db.commit()
-
-# --- تحميل الأدوية ---
-from data.drug_database import ALL_DRUGS
 if db.query(Drug).count() == 0:
+    from data.drug_database import ALL_DRUGS
     for d in ALL_DRUGS:
         db.add(Drug(**d))
-    db.commit()
+db.commit()
 db.close()
 
 @login_manager.user_loader
@@ -40,7 +35,24 @@ def load_user(user_id):
     db = get_db()
     return db.query(User).get(int(user_id))
 
-# --- تسجيل الدخول ---
+# --- PWA Routes ---
+@app.route('/manifest.json')
+def manifest():
+    return send_from_directory('.', 'manifest.json')
+
+@app.route('/sw.js')
+def service_worker():
+    return send_from_directory('.', 'sw.js')
+
+@app.route('/icon-192.png')
+def icon_192():
+    return send_from_directory('.', 'icon-192.png')
+
+@app.route('/icon-512.png')
+def icon_512():
+    return send_from_directory('.', 'icon-512.png')
+
+# --- Login ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -48,26 +60,24 @@ def login():
         user = db.query(User).filter_by(username=request.form['username']).first()
         if user and check_password_hash(user.password_hash, request.form['password']):
             if not user.is_active:
-                return render_template('login.html', error='Account disabled. Contact admin.')
+                return render_template('login.html', error='Account disabled.')
             login_user(user)
             return redirect('/')
-        return render_template('login.html', error='Invalid username or password.')
+        return render_template('login.html', error='Invalid credentials.')
     return render_template('login.html')
 
-# --- تسجيل الخروج ---
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect('/login')
 
-# --- الصفحة الرئيسية ---
 @app.route('/')
 @login_required
 def index():
     return render_template('index.html')
 
-# --- لوحة إدارة المستخدمين ---
+# --- Admin ---
 @app.route('/admin')
 @login_required
 def admin_panel():
@@ -75,71 +85,46 @@ def admin_panel():
         return redirect('/')
     return render_template('admin.html')
 
-# --- API: إدارة المستخدمين (للمشرف فقط) ---
 @app.route('/api/admin/users', methods=['GET', 'POST', 'PUT', 'DELETE'])
 @login_required
 def manage_users():
     if not current_user.is_admin:
         return jsonify({'error': 'Unauthorized'}), 403
-    
     db = get_db()
-    
     if request.method == 'GET':
         users = db.query(User).all()
-        return jsonify([{
-            'id': u.id,
-            'username': u.username,
-            'is_admin': u.is_admin,
-            'is_active': u.is_active
-        } for u in users])
-    
+        return jsonify([{'id': u.id, 'username': u.username, 'is_admin': u.is_admin, 'is_active': u.is_active} for u in users])
     elif request.method == 'POST':
         data = request.json
         if db.query(User).filter_by(username=data['username']).first():
             return jsonify({'error': 'Username exists'}), 400
         u = User(username=data['username'], password_hash=generate_password_hash(data['password']), is_active=True)
-        db.add(u)
-        db.commit()
+        db.add(u); db.commit()
         return jsonify({'status': 'ok', 'id': u.id})
-    
     elif request.method == 'PUT':
         data = request.json
         u = db.query(User).get(data['id'])
         if u and u.id != current_user.id:
-            if 'is_active' in data:
-                u.is_active = data['is_active']
+            if 'is_active' in data: u.is_active = data['is_active']
             db.commit()
             return jsonify({'status': 'ok'})
         return jsonify({'error': 'Cannot modify'}), 400
-    
     elif request.method == 'DELETE':
         u = db.query(User).get(request.args.get('id'))
         if u and u.id != current_user.id:
-            db.delete(u)
-            db.commit()
+            db.delete(u); db.commit()
             return jsonify({'status': 'ok'})
         return jsonify({'error': 'Cannot delete'}), 400
 
-# --- API: الأدوية ---
 @app.route('/api/drugs')
 @login_required
 def drugs():
     db = get_db()
     cat = request.args.get('category')
     q = db.query(Drug)
-    if cat:
-        q = q.filter_by(category=cat)
-    return jsonify([{
-        'id': d.id,
-        'trade_name': d.trade_name,
-        'category': d.category,
-        'admin_route': d.admin_route,
-        'dosage': d.dosage,
-        'frequency': d.frequency,
-        'duration': d.duration
-    } for d in q.all()])
+    if cat: q = q.filter_by(category=cat)
+    return jsonify([{'id': d.id, 'trade_name': d.trade_name, 'category': d.category, 'admin_route': d.admin_route, 'dosage': d.dosage, 'frequency': d.frequency, 'duration': d.duration} for d in q.all()])
 
-# --- API: المرضى ---
 @app.route('/api/patients', methods=['GET', 'POST'])
 @login_required
 def patients():
@@ -147,46 +132,24 @@ def patients():
     if request.method == 'POST':
         data = request.json
         p = Patient(**data)
-        db.add(p)
-        db.commit()
+        db.add(p); db.commit()
         return jsonify({'id': p.id}), 201
-    return jsonify([{
-        'id': p.id,
-        'name': p.name,
-        'age': p.age,
-        'gender': p.gender,
-        'phone': p.phone
-    } for p in db.query(Patient).all()])
+    return jsonify([{'id': p.id, 'name': p.name, 'age': p.age, 'gender': p.gender, 'phone': p.phone} for p in db.query(Patient).all()])
 
-# --- API: الذكاء الاصطناعي ---
 @app.route('/api/ai/analyze', methods=['POST'])
 @login_required
 def ai_analyze():
     data = request.json
-    result = analyze_case(
-        data['symptoms'],
-        data.get('age', ''),
-        data.get('gender', ''),
-        data.get('chronic', ''),
-        data.get('allergies', '')
-    )
+    result = analyze_case(data['symptoms'], data.get('age',''), data.get('gender',''), data.get('chronic',''), data.get('allergies',''))
     return jsonify({'result': result})
 
-# --- API: توليد PDF ---
 @app.route('/api/generate-pdf', methods=['POST'])
 @login_required
 def generate_pdf():
     data = request.json
-    b64 = build_pdf_base64(
-        data['patient'],
-        data['drugs'],
-        data.get('diagnosis', ''),
-        data.get('notes', ''),
-        get_doctor()
-    )
+    b64 = build_pdf_base64(data['patient'], data['drugs'], data.get('diagnosis',''), data.get('notes',''), get_doctor())
     return jsonify({'pdf_base64': b64})
 
-# --- API: الإعدادات ---
 @app.route('/api/settings', methods=['GET', 'POST'])
 @login_required
 def settings():
