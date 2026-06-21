@@ -1,17 +1,19 @@
 import google.generativeai as genai
-from config import GEMINI_API_KEY, GEMINI_MODEL
+import os
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel(GEMINI_MODEL)
+API_KEY = os.environ.get("GEMINI_API_KEY", "AQ.Ab8RN6IQbGoETFwRQuMgx3pWzmlwPr0GcBqtHW3ZGTkeGr55Mg")
+MODEL_NAME = "gemini-2.0-flash"
 
 def analyze_case(symptoms, age, gender, chronic, allergies):
-    prompt = f"""As a dental specialist, analyze:
+    try:
+        genai.configure(api_key=API_KEY)
+        model = genai.GenerativeModel(MODEL_NAME)
+        prompt = f"""As a dental specialist, analyze:
 Symptoms: {symptoms}
 Age: {age}, Gender: {gender}
 Chronic: {chronic or 'none'}, Allergies: {allergies or 'none'}
-Provide: 1. Differential diagnoses 2. Most likely diagnosis 3. Recommended medications (generic names) 4. Precautions"""
-    try:
-        resp = model.generate_content(prompt)
-        return resp.text
+Provide: 1. Differential diagnoses 2. Most likely diagnosis 3. Recommended medications 4. Precautions"""
+        response = model.generate_content(prompt)
+        return response.text
     except Exception as e:
-        return f"AI Error: {e}"
+        return f"AI Error: {str(e)}. Check API key in Render Environment Variables."
