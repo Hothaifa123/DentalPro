@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dental Hothaifa Rx Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root{--ink:#183f3b;--muted:#78948d;--teal:#2f8f7e;--soft:#eaf7f2;--line:#dfece7;--bg:#f4faf7}
+        *{box-sizing:border-box}
+        body{margin:0;font-family:'DM Sans',sans-serif;color:var(--ink)}
+        .app-shell{display:flex;min-height:100vh;background:var(--bg)}
+        .sidebar{width:248px;position:fixed;left:0;top:0;bottom:0;background:#fff;border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;justify-content:space-between;z-index:20}
+        .main-area{margin-left:248px;flex:1;padding:28px}
+        .nav-btn{transition:.22s ease;color:#7d978f;cursor:pointer}
+        .nav-btn:hover,.nav-btn.active{background:var(--soft);color:var(--teal);transform:translateX(2px)}
+        .field{width:100%;border:1px solid #dbe9e4;border-radius:14px;padding:11px 13px;outline:none;background:#fff;color:#244c47;transition:.2s}
+        .field:focus{border-color:#65b7a8;box-shadow:0 0 0 3px rgba(101,183,168,.13)}
+        .view{display:none}
+        .view.active{display:block}
+        .fade{animation:fade .3s ease both}
+        @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        .category-card,.drug-card{transition:.22s ease;cursor:pointer}
+        .category-card:hover,.drug-card:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(31,92,79,.08)}
+        .drug-card.selected{border-color:#2f8f7e;background:#edf8f5}
+        .prescription-paper{width:100%;max-width:760px;background:#fff;border:1px solid #e7eee9;box-shadow:0 18px 35px rgba(35,72,64,.11)}
+        .focus-ring:focus-visible{outline:3px solid rgba(47,143,126,.35);outline-offset:3px}
+        @media(max-width:1024px){.sidebar{position:static;width:100%;height:auto}.app-shell{display:block}.main-area{margin-left:0;padding:18px}}
+        @media(max-width:640px){.category-grid{grid-template-columns:1fr!important}.main-area{padding:14px}}
+    </style>
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div>
+            <div class="mb-8 px-2">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-teal-600 flex items-center justify-center text-white"><i data-lucide="cross"></i></div>
+                    <div><h2 class="font-bold" id="sidebar-clinic">Dental Clinic</h2><p class="text-xs text-muted">Smart Rx Pro</p></div>
+                </div>
+            </div>
+            <nav class="space-y-2">
+                <button class="nav-btn active focus-ring w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left" data-target="instant"><i data-lucide="zap"></i><span class="font-medium">Instant Rx</span></button>
+                <button class="nav-btn focus-ring w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left" data-target="ready"><i data-lucide="clipboard-list"></i><span class="font-medium">Ready Rx</span></button>
+                <button class="nav-btn focus-ring w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left" data-target="custom"><i data-lucide="sparkles"></i><span class="font-medium">AI Custom</span></button>
+                <button class="nav-btn focus-ring w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left" data-target="library"><i data-lucide="pill"></i><span class="font-medium">Drug Library</span></button>
+                <button class="nav-btn focus-ring w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left" data-target="settings"><i data-lucide="settings"></i><span class="font-medium">Settings</span></button>
+                <a href="/admin" class="nav-btn focus-ring w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left"><i data-lucide="users"></i><span class="font-medium">Manage Users</span></a>
+                <a href="/logout" class="nav-btn focus-ring w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left text-red-500"><i data-lucide="log-out"></i><span class="font-medium">Logout</span></a>
+            </nav>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <!-- Instant Rx -->
+        <section id="instant" class="view active fade">
+            <div class="grid grid-cols-[1.1fr_.9fr] gap-5 hero-grid mb-6">
+                <div class="bg-gradient-to-r from-teal-800 to-teal-600 rounded-[28px] p-7 text-white flex flex-col justify-center">
+                    <h2 class="font-bold text-2xl mb-2">Instant Prescription</h2>
+                    <p class="mb-4 opacity-90">Select category, choose drugs, generate prescription in seconds.</p>
+                    <button id="open-first-category" class="bg-white text-teal-700 rounded-xl px-4 py-2 font-semibold inline-flex items-center gap-2"><i data-lucide="plus"></i> Start Rx</button>
+                </div>
+                <div class="bg-white rounded-[28px] p-5 border">
+                    <h2 class="font-bold mb-2">Selected Drugs</h2>
+                    <div id="selected-list" class="space-y-3 min-h-[100px]"></div>
+                    <div id="selected-empty" class="py-8 text-center text-muted"><i data-lucide="clipboard-plus"></i> No drugs selected</div>
+                    <button id="finish-rx" class="w-full mt-4 bg-teal-600 text-white px-4 py-3 rounded-2xl font-semibold">Finish Prescription</button>
+                </div>
+            </div>
+            <div id="category-grid" class="grid grid-cols-3 gap-4 category-grid"></div>
+        </section>
+
+        <!-- Preview -->
+        <section id="preview" class="view fade">
+            <div class="flex items-center justify-between mb-5">
+                <h2 class="font-bold text-2xl">Prescription Preview</h2>
+                <button id="back-to-instant" class="bg-gray-100 px-4 py-2 rounded-xl font-semibold inline-flex items-center gap-2"><i data-lucide="arrow-left"></i> Back</button>
+            </div>
+            <div class="grid grid-cols-[1fr_280px] gap-5">
+                <div class="flex justify-center">
+                    <div id="rx-paper" class="prescription-paper p-8">
+                        <div class="flex justify-between border-b pb-4 mb-5">
+                            <div><h2 id="paper-clinic" class="font-bold text-2xl">Dental Clinic</h2><p class="text-sm text-muted">Prescription Note</p></div>
+                            <div class="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center"><i data-lucide="cross"></i></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 text-sm mb-5">
+                            <div><span class="text-muted">Name:</span> <span id="paper-name">............................</span></div>
+                            <div><span class="text-muted">Gender:</span> <span id="paper-gender">........</span> | <span class="text-muted">Age:</span> <span id="paper-age">....</span></div>
+                            <div><span class="text-muted">Date:</span> <span id="paper-date"></span></div>
+                            <div><span class="text-muted">Diagnosis:</span> <span id="paper-diagnosis">........................</span></div>
+                        </div>
+                        <div class="border-t pt-5 min-h-[330px]">
+                            <h3 class="font-bold text-xl mb-3 text-red-600">Rx:-</h3>
+                            <div id="paper-rx" class="whitespace-pre-line leading-8 text-lg"></div>
+                        </div>
+                        <div class="border-t pt-5 mt-8 flex justify-between items-end">
+                            <div><p id="paper-doctor" class="font-bold">Dr.</p><p id="paper-doctor-phone" class="text-sm text-muted"></p></div>
+                            <div class="text-muted italic">Signature</div>
+                        </div>
+                    </div>
+                </div>
+                <aside class="bg-white rounded-[26px] p-5 border h-fit">
+                    <h3 class="font-bold mb-4">Patient Info</h3>
+                    <div class="space-y-3">
+                        <input id="preview-name" class="field" placeholder="Name">
+                        <input id="preview-age" class="field" type="number" placeholder="Age">
+                        <select id="preview-gender" class="field"><option>Male</option><option>Female</option></select>
+                        <input id="preview-diagnosis" class="field" placeholder="Diagnosis">
+                    </div>
+                    <div class="space-y-2 mt-5">
+                        <button id="print-rx" class="w-full bg-gray-800 text-white px-4 py-3 rounded-2xl font-semibold inline-flex items-center justify-center gap-2"><i data-lucide="printer"></i> Print</button>
+                        <button id="download-pdf" class="w-full bg-teal-600 text-white px-4 py-3 rounded-2xl font-semibold inline-flex items-center justify-center gap-2"><i data-lucide="file-down"></i> Download PDF</button>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <!-- AI Custom -->
+        <section id="custom" class="view fade">
+            <div class="grid grid-cols-2 gap-5">
+                <div class="bg-white rounded-[28px] p-6 border">
+                    <h2 class="font-bold mb-5">AI Prescription Generator</h2>
+                    <form id="custom-form" class="space-y-4">
+                        <input id="custom-name" class="field" placeholder="Patient Name">
+                        <div class="grid grid-cols-2 gap-3">
+                            <input id="custom-age" class="field" type="number" placeholder="Age">
+                            <select id="custom-gender" class="field"><option>Male</option><option>Female</option></select>
+                        </div>
+                        <textarea id="custom-symptoms" class="field min-h-[120px]" placeholder="Symptoms, diagnosis..."></textarea>
+                        <button type="submit" class="bg-teal-600 text-white px-5 py-3 rounded-2xl font-semibold inline-flex items-center gap-2"><i data-lucide="sparkles"></i> Generate AI Rx</button>
+                    </form>
+                </div>
+                <div class="bg-teal-800 text-white rounded-[28px] p-6">
+                    <h2 class="font-bold mb-4">AI Suggestion</h2>
+                    <div id="ai-result" class="bg-white text-gray-800 rounded-2xl p-5 hidden"></div>
+                    <div id="ai-placeholder" class="text-teal-200 text-sm">Fill the form and generate a smart prescription.</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ready Rx -->
+        <section id="ready" class="view fade">
+            <h2 class="font-bold text-2xl mb-4">Ready Prescriptions</h2>
+            <div id="ready-grid" class="grid grid-cols-3 gap-4"></div>
+        </section>
+
+        <!-- Library -->
+        <section id="library" class="view fade">
+            <div class="grid grid-cols-[250px_1fr] gap-5">
+                <aside class="bg-white rounded-[28px] p-5 border"><h2 class="font-bold mb-4">Categories</h2><div id="library-categories" class="space-y-2"></div></aside>
+                <div class="bg-white rounded-[28px] p-6 border"><h2 id="library-title" class="font-bold text-2xl mb-4">Drugs</h2><div id="library-drugs" class="grid grid-cols-2 gap-3"></div></div>
+            </div>
+        </section>
+
+        <!-- Settings -->
+        <section id="settings" class="view fade">
+            <div class="bg-white rounded-[28px] p-6 border max-w-xl">
+                <h2 class="font-bold text-2xl mb-4">Clinic Settings</h2>
+                <form id="settings-form" class="space-y-4">
+                    <input id="settings-clinic" class="field" placeholder="Clinic Name">
+                    <input id="settings-doctor" class="field" placeholder="Doctor Name">
+                    <input id="settings-phone" class="field" placeholder="Phone">
+                    <input id="settings-specialty" class="field" placeholder="Specialty">
+                    <button type="submit" class="bg-teal-600 text-white px-5 py-3 rounded-2xl font-semibold">Save Settings</button>
+                </form>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Drug Modal -->
+<div id="drug-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-[28px] w-full max-w-2xl max-h-[85%] overflow-hidden">
+        <div class="p-6 border-b flex justify-between"><h2 id="modal-title" class="font-bold text-2xl"></h2><button id="close-modal" class="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center"><i data-lucide="x"></i></button></div>
+        <div id="modal-drug-list" class="p-6 grid grid-cols-2 gap-3 overflow-y-auto max-h-[60vh]"></div>
+        <div class="p-5 border-t flex justify-end gap-3"><button id="cancel-modal" class="px-5 py-3 rounded-2xl">Cancel</button><button id="confirm-modal" class="bg-teal-600 text-white px-5 py-3 rounded-2xl font-semibold">Add Selected</button></div>
+    </div>
+</div>
+
+<script>
+let currentPrescription=[],allDrugs=[],doctorSettings={};
+
+async function loadSettings(){
+    const res=await fetch('/api/settings');
+    doctorSettings=await res.json()||{};
+    document.getElementById('sidebar-clinic').textContent=doctorSettings.clinic||'Dental Clinic';
+    document.getElementById('paper-clinic').textContent=doctorSettings.clinic||'Dental Clinic';
+    document.getElementById('paper-doctor').textContent=(doctorSettings.name||'Dr.')+(doctorSettings.specialty?' / '+doctorSettings.specialty:'');
+    document.getElementById('paper-doctor-phone').textContent='Phone: '+(doctorSettings.phone||'');
+}
+
+async function loadDrugs(){
+    const res=await fetch('/api/drugs');
+    allDrugs=await res.json();
+    renderCategories();
+}
+
+function renderCategories(){
+    const cats=[...new Set(allDrugs.map(d=>d.category))];
+    document.getElementById('category-grid').innerHTML=cats.map(c=>`
+        <button class="category-card bg-white rounded-[22px] p-4 border text-left" onclick="openDrugModal('${c}')">
+            <div class="w-11 h-11 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center mb-3"><i data-lucide="pill"></i></div>
+            <h3 class="font-bold">${c}</h3><p class="text-sm text-muted">${allDrugs.filter(d=>d.category===c).length} drugs</p>
+        </button>`).join('');
+    lucide.createIcons();
+}
+
+function openDrugModal(cat){
+    document.getElementById('modal-title').textContent=cat;
+    const drugs=allDrugs.filter(d=>d.category===cat);
+    document.getElementById('modal-drug-list').innerHTML=drugs.map(d=>`
+        <button class="drug-card text-left rounded-[18px] border p-4" data-drug='${JSON.stringify(d)}' onclick="this.classList.toggle('selected')">
+            <p class="font-medium">${d.trade_name}</p><p class="text-xs text-muted">${d.dosage} ${d.frequency} ${d.duration||''}</p>
+        </button>`).join('');
+    document.getElementById('drug-modal').classList.remove('hidden');
+}
+
+document.getElementById('close-modal').onclick=()=>document.getElementById('drug-modal').classList.add('hidden');
+document.getElementById('cancel-modal').onclick=()=>document.getElementById('drug-modal').classList.add('hidden');
+document.getElementById('confirm-modal').onclick=()=>{
+    document.querySelectorAll('#modal-drug-list .drug-card.selected').forEach(el=>{
+        const d=JSON.parse(el.dataset.drug);
+        currentPrescription.push({drug_name:d.trade_name,dosage:d.dosage,frequency:d.frequency,duration:d.duration});
+    });
+    renderSelected();
+    document.getElementById('drug-modal').classList.add('hidden');
+};
+
+function renderSelected(){
+    const list=document.getElementById('selected-list');
+    document.getElementById('selected-empty').classList.toggle('hidden',currentPrescription.length>0);
+    list.innerHTML=currentPrescription.map((item,i)=>`
+        <div class="rounded-2xl bg-gray-50 p-3 flex justify-between items-center">
+            <span>${item.drug_name} ${item.dosage} ${item.frequency} ${item.duration||''}</span>
+            <button onclick="currentPrescription.splice(${i},1);renderSelected();" class="text-red-500"><i data-lucide="x"></i></button>
+        </div>`).join('');
+    lucide.createIcons();
+}
+
+document.getElementById('finish-rx').onclick=()=>{
+    if(!currentPrescription.length)return alert('Add at least one drug.');
+    document.getElementById('paper-rx').textContent=currentPrescription.map(d=>`${d.drug_name}  ${d.dosage}  ${d.frequency}  ${d.duration||''}`).join('\n\n');
+    document.getElementById('paper-date').textContent=new Date().toLocaleDateString('en-GB');
+    switchView('preview');
+};
+
+function switchView(id){
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.target===id));
+    if(id==='ready')loadReadyRx();
+    if(id==='library')renderLibrary();
+    lucide.createIcons();
+}
+
+document.querySelectorAll('.nav-btn[data-target]').forEach(b=>b.onclick=()=>switchView(b.dataset.target));
+document.getElementById('back-to-instant').onclick=()=>switchView('instant');
+document.getElementById('open-first-category').onclick=()=>openDrugModal('Antibiotic');
+
+// Print
+document.getElementById('print-rx').onclick=()=>{const w=window.open('','_blank');w.document.write('<html><head><title>Rx</title></head><body>'+document.getElementById('rx-paper').outerHTML+'</body></html>');w.document.close();w.print();};
+
+// PDF Download
+document.getElementById('download-pdf').onclick=async()=>{
+    const data={patient:{name:document.getElementById('preview-name').value||'Patient',age:document.getElementById('preview-age').value||'',gender:document.getElementById('preview-gender').value||'Male'},drugs:currentPrescription,diagnosis:document.getElementById('preview-diagnosis').value||''};
+    const res=await fetch('/api/generate-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const r=await res.json();
+    const a=document.createElement('a');a.href='data:application/pdf;base64,'+r.pdf_base64;a.download='prescription.pdf';a.click();
+};
+
+// AI
+document.getElementById('custom-form').onsubmit=async(e)=>{
+    e.preventDefault();
+    const res=await fetch('/api/ai/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symptoms:document.getElementById('custom-symptoms').value,age:document.getElementById('custom-age').value,gender:document.getElementById('custom-gender').value})});
+    const d=await res.json();
+    document.getElementById('ai-result').innerHTML=`<p class="text-sm whitespace-pre-line">${d.result}</p>`;
+    document.getElementById('ai-result').classList.remove('hidden');
+    document.getElementById('ai-placeholder').classList.add('hidden');
+};
+
+// Ready Rx
+function loadReadyRx(){
+    const saved=JSON.parse(localStorage.getItem('ready_rx')||'[]');
+    document.getElementById('ready-grid').innerHTML=saved.length?saved.map((r,i)=>`
+        <div class="bg-white rounded-[24px] p-5 border"><h3 class="font-bold">${r.title||'Saved Rx'}</h3><button onclick="useReady(${i})" class="mt-3 bg-teal-50 text-teal-700 px-3 py-2 rounded-xl font-semibold">Use</button></div>`).join(''):'<p class="text-muted">No saved prescriptions.</p>';
+}
+
+function useReady(i){
+    const saved=JSON.parse(localStorage.getItem('ready_rx')||'[]');
+    currentPrescription=saved[i].drugs;
+    document.getElementById('paper-rx').textContent=currentPrescription.map(d=>`${d.drug_name}  ${d.dosage}  ${d.frequency}  ${d.duration||''}`).join('\n\n');
+    switchView('preview');
+}
+
+// Save ready
+document.addEventListener('DOMContentLoaded',()=>{
+    const origFinish=document.getElementById('finish-rx').onclick;
+    // Auto-save when finishing
+});
+
+// Library
+function renderLibrary(){
+    const cats=[...new Set(allDrugs.map(d=>d.category))];
+    document.getElementById('library-categories').innerHTML=cats.map(c=>`<button class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-100" onclick="renderLibraryDrugs('${c}')">${c}</button>`).join('');
+    renderLibraryDrugs(cats[0]);
+}
+function renderLibraryDrugs(cat){
+    document.getElementById('library-title').textContent=cat||'Drugs';
+    document.getElementById('library-drugs').innerHTML=allDrugs.filter(d=>d.category===cat).map(d=>`<div class="p-4 border rounded-xl bg-gray-50"><p class="font-medium">${d.trade_name}</p><p class="text-xs text-muted">${d.dosage} ${d.frequency} ${d.duration||''}</p></div>`).join('');
+}
+
+// Settings
+document.getElementById('settings-form').onsubmit=async(e)=>{
+    e.preventDefault();
+    await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clinic:document.getElementById('settings-clinic').value,name:document.getElementById('settings-doctor').value,phone:document.getElementById('settings-phone').value,specialty:document.getElementById('settings-specialty').value})});
+    await loadSettings();
+    alert('Settings saved!');
+};
+
+// Init
+(async()=>{await loadSettings();await loadDrugs();document.getElementById('paper-date').textContent=new Date().toLocaleDateString('en-GB');lucide.createIcons();})();
+</script>
+</body>
+</html>
