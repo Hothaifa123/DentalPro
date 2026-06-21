@@ -1,0 +1,8 @@
+flask
+flask-cors
+flask-login
+sqlalchemy
+fpdf2
+google-generativeai
+pillow
+werkzeug
