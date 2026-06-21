@@ -6,8 +6,7 @@ DATABASE_PATH = os.path.join(BASE_DIR, "dental.db")
 SQLALCHEMY_DATABASE_URI = f"sqlite:///{DATABASE_PATH}"
 DOWNLOADS_DIR = "/tmp"
 
-# ضع مفتاح API الخاص بك هنا
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AQ.Ab8RN6IQbGoETFwRQuMgx3pWzmlwPr0GcBqtHW3ZGTkeGr55Mg")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-2.0-flash"
 
 ARIAL_FONT_PATH = os.path.join(BASE_DIR, "Arial.ttf")
