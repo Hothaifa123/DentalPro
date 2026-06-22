@@ -30,7 +30,7 @@ class A5Prescription(FPDF):
         self.set_font('Arial', '', 7)
         self.cell(0, 5, f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}  |  {self.doctor.get('clinic','')}", ln=True, align='C')
 
-def build_pdf_base64(patient, drugs, diagnosis, notes="", doctor=None):
+def build_pdf(patient, drugs, diagnosis, notes="", doctor=None):
     pdf = A5Prescription(doctor)
     pdf.add_page()
     pdf.set_font('Arial', 'B', 11)
@@ -53,9 +53,4 @@ def build_pdf_base64(patient, drugs, diagnosis, notes="", doctor=None):
         pdf.ln(4)
         pdf.set_font('Arial', 'I', 9)
         pdf.multi_cell(0, 5, f"Notes: {notes}")
-    import tempfile
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
-        pdf.output(tmp.name)
-        with open(tmp.name, 'rb') as f:
-            b64 = base64.b64encode(f.read()).decode()
-    return b64
+    return pdf.output()

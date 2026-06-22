@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, send_from_directory
+from flask import Flask, request, jsonify, render_template, redirect, Response
 from flask_cors import CORS
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -6,7 +6,7 @@ import json, os
 from database import init_db, get_db
 from models import User, Patient, Drug, Prescription
 from config import get_doctor, save_settings, load_settings, DRUG_CATEGORIES
-from utils.prescription_engine import build_pdf_base64
+from utils.prescription_engine import build_pdf
 from utils.gemini_helper import analyze_case
 
 app = Flask(__name__)
@@ -19,7 +19,6 @@ login_manager.login_view = 'login'
 
 init_db()
 
-# --- تحميل الأدوية وحساب المدير ---
 db = get_db()
 if db.query(User).filter_by(username='admin').first() is None:
     db.add(User(username='admin', password_hash=generate_password_hash('admin123'), is_admin=True, is_active=True))
@@ -35,24 +34,6 @@ def load_user(user_id):
     db = get_db()
     return db.query(User).get(int(user_id))
 
-# --- PWA Routes ---
-@app.route('/manifest.json')
-def manifest():
-    return send_from_directory('.', 'manifest.json')
-
-@app.route('/sw.js')
-def service_worker():
-    return send_from_directory('.', 'sw.js')
-
-@app.route('/icon-192.png')
-def icon_192():
-    return send_from_directory('.', 'icon-192.png')
-
-@app.route('/icon-512.png')
-def icon_512():
-    return send_from_directory('.', 'icon-512.png')
-
-# --- Login ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -77,7 +58,6 @@ def logout():
 def index():
     return render_template('index.html')
 
-# --- Admin ---
 @app.route('/admin')
 @login_required
 def admin_panel():
@@ -131,10 +111,10 @@ def patients():
     db = get_db()
     if request.method == 'POST':
         data = request.json
-        p = Patient(**data)
+        p = Patient(name=data['name'], age=data.get('age'), gender=data.get('gender'), phone=data.get('phone'), address=data.get('address'), allergies=data.get('allergies'), chronic=data.get('chronic'))
         db.add(p); db.commit()
-        return jsonify({'id': p.id}), 201
-    return jsonify([{'id': p.id, 'name': p.name, 'age': p.age, 'gender': p.gender, 'phone': p.phone} for p in db.query(Patient).all()])
+        return jsonify({'id': p.id, 'name': p.name, 'age': p.age, 'gender': p.gender}), 201
+    return jsonify([{'id': p.id, 'name': p.name, 'age': p.age, 'gender': p.gender, 'phone': p.phone, 'address': p.address, 'allergies': p.allergies, 'chronic': p.chronic} for p in db.query(Patient).all()])
 
 @app.route('/api/ai/analyze', methods=['POST'])
 @login_required
@@ -147,8 +127,8 @@ def ai_analyze():
 @login_required
 def generate_pdf():
     data = request.json
-    b64 = build_pdf_base64(data['patient'], data['drugs'], data.get('diagnosis',''), data.get('notes',''), get_doctor())
-    return jsonify({'pdf_base64': b64})
+    pdf_bytes = build_pdf(data['patient'], data['drugs'], data.get('diagnosis',''), data.get('notes',''), get_doctor())
+    return Response(pdf_bytes, mimetype='application/pdf', headers={'Content-Disposition': 'attachment;filename=prescription.pdf'})
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 @login_required
